@@ -1,10 +1,12 @@
 package es.ieslavereda.baseoficios.activities;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -28,8 +30,6 @@ import es.ieslavereda.baseoficios.base.CallInterface;
 
 public class MainActivity extends BaseActivity implements CallInterface<List<Usuario>>, View.OnClickListener {
 
-    private static final String TAG = "MainActivity";
-
     private List<Usuario> usuarios = Collections.emptyList();
     private Map<Integer, Oficio> mapOficios = new HashMap<>();
 
@@ -40,45 +40,47 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
     private Usuario usuarioEliminado;
     private int posicionEliminado;
 
+    private ActivityResultLauncher<Intent> usuarioActivityLauncher;
+
     private final CallInterface<Usuario> INSERTAR_USUARIO = new CallInterface<Usuario>() {
         @Override
         public Usuario doInBackground() throws Exception {
-            Log.d(TAG, "INSERTAR_USUARIO: Reinsertando usuario eliminado: " + usuarioEliminado.getNombre());
-            return Connector.getConector().post(Usuario.class, usuarioEliminado, "usuarios/");
+            return Connector.getConector().post(Usuario.class, usuarioEliminado, "usuarios");
         }
 
         @Override
         public void doInUI(Usuario data) {
-            if (data != null && data.equals(usuarioEliminado)) {
-                Log.d(TAG, "INSERTAR_USUARIO: Usuario reinsertado con éxito");
-                usuarios.add(posicionEliminado, usuarioEliminado);
-                adapter.notifyItemInserted(posicionEliminado);
-            } else {
-                Log.d(TAG, "INSERTAR_USUARIO: Error al reinsertar usuario");
-                Snackbar.make(recyclerView, "Error al deshacer eliminación", Snackbar.LENGTH_LONG).show();
-            }
+
+            usuarios.add(posicionEliminado, usuarioEliminado);
+            adapter.notifyItemInserted(posicionEliminado);
+
         }
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate iniciado");
         setContentView(R.layout.activity_main);
 
         recyclerView = findViewById(R.id.recyclerViewUsuarios);
         fab = findViewById(R.id.floatingActionButton);
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-
-        // Attach adapter with empty data and empty map to avoid warnings
         adapter = new UsuarioAdapter(usuarios, this, mapOficios);
         recyclerView.setAdapter(adapter);
 
+        usuarioActivityLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == Activity.RESULT_OK) {
+                        recargarUsuarios();
+                    }
+                }
+        );
+
         fab.setOnClickListener(v -> {
-            Log.d(TAG, "FAB clicado, intentando abrir UsuarioActivity");
             Intent intent = new Intent(this, UsuarioActivity.class);
-            startActivity(intent);
+            usuarioActivityLauncher.launch(intent);
         });
 
         ItemTouchHelper itemTouchHelper = new ItemTouchHelper(
@@ -96,11 +98,8 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
                     public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
                         posicionEliminado = viewHolder.getAdapterPosition();
                         usuarioEliminado = usuarios.get(posicionEliminado);
-
-                        // Remove from list and notify adapter
                         usuarios.remove(posicionEliminado);
                         adapter.notifyItemRemoved(posicionEliminado);
-
                         eliminarUsuario(usuarioEliminado);
                     }
                 });
@@ -108,7 +107,6 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
 
         showProgress();
 
-        // First load oficios, then load usuarios after oficios are ready
         executeCall(new CallInterface<List<Oficio>>() {
             @Override
             public List<Oficio> doInBackground() throws Exception {
@@ -123,10 +121,8 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
                         mapOficios.put(o.getIdOficio(), o);
                     }
                     adapter.setOficios(mapOficios);
-                    // Now load users
                     executeCall(MainActivity.this);
                 } else {
-                    Log.e(TAG, "No se pudieron cargar los oficios");
                     hideProgress();
                 }
             }
@@ -135,13 +131,11 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
 
     @Override
     public List<Usuario> doInBackground() throws Exception {
-        Log.d(TAG, "doInBackground: obteniendo lista de usuarios");
         return Connector.getConector().getAsList(Usuario.class, "usuarios");
     }
 
     @Override
     public void doInUI(List<Usuario> data) {
-        Log.d(TAG, "doInUI: usuarios recibidos, total: " + (data != null ? data.size() : "null"));
         if (data != null) {
             usuarios = data;
         } else {
@@ -156,10 +150,9 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
         int pos = recyclerView.getChildAdapterPosition(view);
         if (pos != RecyclerView.NO_POSITION && usuarios != null && pos < usuarios.size()) {
             Usuario usuario = usuarios.get(pos);
-            Log.d(TAG, "Usuario clicado en posición " + pos + ": " + usuario.getNombre() + ", abriendo UsuarioActivity");
             Intent intent = new Intent(this, UsuarioActivity.class);
             intent.putExtra("usuario_id", usuario.getIdUsuario());
-            startActivity(intent);
+            usuarioActivityLauncher.launch(intent);
         }
     }
 
@@ -172,16 +165,15 @@ public class MainActivity extends BaseActivity implements CallInterface<List<Usu
 
             @Override
             public void doInUI(Usuario data) {
-                if (data != null && data.equals(usuario)) {
-                    Snackbar.make(recyclerView, "Usuario eliminado: " + usuario.getNombre(), Snackbar.LENGTH_LONG)
-                            .setAction("Deshacer", v -> executeCall(INSERTAR_USUARIO))
-                            .show();
-                } else {
-                    usuarios.add(posicionEliminado, usuario);
-                    adapter.notifyItemInserted(posicionEliminado);
-                    Snackbar.make(recyclerView, "Error al eliminar usuario", Snackbar.LENGTH_LONG).show();
-                }
+                Snackbar.make(recyclerView, "Usuario eliminado: " + usuario.getNombre(), Snackbar.LENGTH_LONG)
+                        .setAction("Deshacer", v -> executeCall(INSERTAR_USUARIO))
+                        .show();
             }
         });
+    }
+
+    private void recargarUsuarios() {
+        showProgress();
+        executeCall(this);
     }
 }

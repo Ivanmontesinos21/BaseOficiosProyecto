@@ -13,7 +13,6 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-
         <ImageView
             android:id="@+id/imageUsuario"
             android:layout_width="64dp"
@@ -22,37 +21,27 @@
             android:scaleType="centerCrop"
             android:contentDescription="Imagen del usuario" />
 
-
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical">
 
-
             <TextView
-                android:id="@+id/textNombre"
+                android:id="@+id/textNombreApellido"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Nombre"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-                android:textStyle="bold" />
-
-
-            <TextView
-                android:id="@+id/textApellidos"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Apellidos"
+                android:text="Garcia Perez, Tomas"
                 android:textAppearance="@style/TextAppearance.AppCompat.Medium"
                 android:textStyle="bold"
-                android:layout_marginBottom="4dp"/>
+                android:textColor="@android:color/black"
+                android:layout_marginBottom="2dp"/>
 
             <TextView
                 android:id="@+id/textOficio"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Oficio"
+                android:text="OFICIO"
                 android:textAppearance="@style/TextAppearance.AppCompat.Small"
                 android:textColor="#666666" />
         </LinearLayout>

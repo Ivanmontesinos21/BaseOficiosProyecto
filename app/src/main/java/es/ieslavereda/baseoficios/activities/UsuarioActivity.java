@@ -1,9 +1,11 @@
 package es.ieslavereda.baseoficios.activities;
 
+import android.app.Activity;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -18,12 +20,15 @@ import es.ieslavereda.baseoficios.activities.model.Oficio;
 import es.ieslavereda.baseoficios.activities.model.Usuario;
 import es.ieslavereda.baseoficios.base.BaseActivity;
 import es.ieslavereda.baseoficios.base.CallInterface;
+import es.ieslavereda.baseoficios.base.Parameters;
+import es.ieslavereda.baseoficios.base.ImageDownloader;
 
 public class UsuarioActivity extends BaseActivity {
 
     private Spinner spinnerOficio;
     private EditText editNombre, editApellidos;
     private Button btnGuardar, btnCancelar;
+    private ImageView imageOficio;
 
     private Usuario usuario;
     private boolean isEdit = false;
@@ -40,11 +45,20 @@ public class UsuarioActivity extends BaseActivity {
         editApellidos = findViewById(R.id.editApellidos);
         btnGuardar = findViewById(R.id.btnGuardar);
         btnCancelar = findViewById(R.id.btnCancelar);
+        imageOficio = findViewById(R.id.imageOficio);
 
         int usuarioId = getIntent().getIntExtra("usuario_id", -1);
         isEdit = usuarioId != -1;
+        if (isEdit) {
+            btnGuardar.setText("Guardar");
+        }else {
+            btnGuardar.setText("Crear");
+        }
 
-        btnCancelar.setOnClickListener(v -> finish());
+        btnCancelar.setOnClickListener(v -> {
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+        });
 
         btnGuardar.setOnClickListener(v -> {
             String nombre = editNombre.getText().toString().trim();
@@ -83,15 +97,15 @@ public class UsuarioActivity extends BaseActivity {
         executeCall(new CallInterface<List<Oficio>>() {
             @Override
             public List<Oficio> doInBackground() throws Exception {
-                return Connector.getConector().getAsList(Oficio.class, "oficios/");
+                return Connector.getConector().getAsList(Oficio.class, "oficios");
             }
 
             @Override
             public void doInUI(List<Oficio> data) {
-                listaOficios = data;
+                listaOficios = data != null ? data : new ArrayList<>();
 
                 ArrayList<String> descripciones = new ArrayList<>();
-                for (Oficio oficio : data) {
+                for (Oficio oficio : listaOficios) {
                     descripciones.add(oficio.getDescripcion());
                 }
 
@@ -103,17 +117,45 @@ public class UsuarioActivity extends BaseActivity {
                 adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                 spinnerOficio.setAdapter(adapter);
 
+                if (!listaOficios.isEmpty()) {
+                    mostrarImagenOficio(listaOficios.get(0));
+                }
+
+                spinnerOficio.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
+                        if (position >= 0 && position < listaOficios.size()) {
+                            mostrarImagenOficio(listaOficios.get(position));
+                        }
+                    }
+
+                    @Override
+                    public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                        imageOficio.setImageResource(R.drawable.ic_launcher_background);
+                    }
+                });
+
                 if (isEdit && usuario != null) {
                     int pos = 0;
                     for (int i = 0; i < listaOficios.size(); i++) {
                         if (listaOficios.get(i).getIdOficio() == usuario.getOficio_idOficio()) {
                             pos = i;
+                            break;
                         }
                     }
                     spinnerOficio.setSelection(pos);
                 }
             }
         });
+    }
+
+    private void mostrarImagenOficio(Oficio oficio) {
+        if (oficio != null && oficio.getImage() != null && !oficio.getImage().isEmpty()) {
+            String imageUrl = Parameters.URL_IMAGE_BASE + oficio.getImage();
+            ImageDownloader.downloadImage(imageUrl, imageOficio);
+        } else {
+            imageOficio.setImageResource(R.drawable.ic_launcher_background);
+        }
     }
 
     private void cargarUsuario(int id) {
@@ -130,14 +172,16 @@ public class UsuarioActivity extends BaseActivity {
                     editNombre.setText(usuario.getNombre());
                     editApellidos.setText(usuario.getApellidos());
 
-                    if (listaOficios != null) {
+                    if (listaOficios != null && !listaOficios.isEmpty()) {
                         int pos = 0;
                         for (int i = 0; i < listaOficios.size(); i++) {
                             if (listaOficios.get(i).getIdOficio() == usuario.getOficio_idOficio()) {
                                 pos = i;
+                                break;
                             }
                         }
                         spinnerOficio.setSelection(pos);
+                        mostrarImagenOficio(listaOficios.get(pos));
                     }
                 }
             }
@@ -148,13 +192,14 @@ public class UsuarioActivity extends BaseActivity {
         executeCall(new CallInterface<Usuario>() {
             @Override
             public Usuario doInBackground() throws Exception {
-                return Connector.getConector().post(Usuario.class, usuario, "usuarios/");
+                return Connector.getConector().post(Usuario.class, usuario, "usuarios");
             }
 
             @Override
             public void doInUI(Usuario data) {
                 if (data != null) {
                     Toast.makeText(UsuarioActivity.this, "Usuario creado", Toast.LENGTH_SHORT).show();
+                    setResult(Activity.RESULT_OK);
                     finish();
                 }
             }
@@ -165,13 +210,14 @@ public class UsuarioActivity extends BaseActivity {
         executeCall(new CallInterface<Usuario>() {
             @Override
             public Usuario doInBackground() throws Exception {
-                return Connector.getConector().put(Usuario.class, usuario, "usuarios/");
+                return Connector.getConector().put(Usuario.class, usuario, "usuarios");
             }
 
             @Override
             public void doInUI(Usuario data) {
                 if (data != null) {
                     Toast.makeText(UsuarioActivity.this, "Usuario actualizado", Toast.LENGTH_SHORT).show();
+                    setResult(Activity.RESULT_OK);
                     finish();
                 }
             }
